@@ -1,56 +1,65 @@
+
+
 provider "aws" {
-    region = "ap-northeast-1"
+  region = local.location
 }
 
 locals {
   instance_type = "t2.micro"
-  location = "ap-northeast-1"
-  env = "dev"
-  vpc_cidr = "10.123.0.0/16"
+  location      = "us-east-1"
+  environment   = "dev"
+  vpc_cidr      = "10.123.0.0/16"
 }
 
 module "networking" {
-    vpc_cidr = local.vpc_cidr
-    source = "../modules/networking"
-    access_ip = var.access_ip
-    private_sn_count = 2
-    public_sn_count = 2
+  source           = "../modules/networking"
+  vpc_cidr         = local.vpc_cidr
+  access_ip        = var.access_ip
+  public_sn_count  = 2
+  private_sn_count = 2
+  db_subnet_group  = true
+  availabilityzone = "us-east-1a"
+  azs              = 2
 }
 
 module "compute" {
-  source = "../modules/compute"
-  instance_type = local.instance_type
-  ssh_key = "test"
-  lb_tg_name = "test"
-  key_name = "test"
-  public_subnets = module.networking.public_sn_count
-  private_subnets = module.networking.private_sn_count
-  frontend_app_sg = module.networking.frontend_app_sg
-  bastion_sg = module.networking.bastion_sg
-  backend_app_sg = module.networking.backend_app_sg
+  source                 = "../modules/compute"
+  frontend_app_sg        = module.networking.frontend_app_sg
+  backend_app_sg         = module.networking.backend_app_sg
+  bastion_sg             = module.networking.bastion_sg
+  public_subnets         = module.networking.public_subnets
+  private_subnets        = module.networking.private_subnets
+  bastion_instance_count = 1
+  instance_type          = local.instance_type
+  key_name               = "Three-Tier-Terraform"
+  ssh_key                = "Three-Tier-Terraform"
+  lb_tg_name             = module.loadbalancing.lb_tg_name
+  lb_tg                  = module.loadbalancing.lb_tg
 }
 
 module "database" {
-  source = "../modules/database"
-  db_allocated_storage = 10
-  db_instance_class = "db.t2.micro"
-  db_engine_version = "8.0"
-  db_name = "test"
-  db_username = "test"
-  db_password = "pwd123"
-  db_subnet_group_name = module.networking.rds_db_subnet_group[0]
-  identifier = "ee-instance-demo"
-  rds_sg = module.networking.rds_sg
-  db_skip_snapshot = true
+  source               = "../modules/database"
+  db_storage           = 10
+  db_engine_version    = "8.0"
+  db_instance_class    = "db.t2.micro"
+  db_name              = var.db_name
+  dbuser               = var.dbuser
+  dbpassword           = var.dbpassword
+  db_identifier        = "three-tier-db"
+  skip_db_snapshot     = true
+  rds_sg               = module.networking.rds_sg
+  db_subnet_group_name = module.networking.db_subnet_group_name[0]
 }
 
 module "loadbalancing" {
-  source = "../modules/loadbalancing"
-  lb_sg = module.networking.lb_sg
-  public_subnets = module.networking.private_subnets
-  app_sg = module.compute.app_asg
-  port = 80
-  protocol = "HTTP"
-  vpc_id = module.networking.vpc_id
-
+  source            = "../modules/loadbalancing"
+  lb_sg             = module.networking.lb_sg
+  public_subnets    = module.networking.public_subnets
+  tg_port           = 80
+  tg_protocol       = "HTTP"
+  vpc_id            = module.networking.vpc_id
+  app_asg           = module.compute.app_asg
+  listener_port     = 80
+  listener_protocol = "HTTP"
+  azs               = 2
 }
