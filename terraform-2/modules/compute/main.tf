@@ -1,99 +1,118 @@
-# launch template for bastion host
+# LATEST AMI FROM PARAMETER STORE
 
-resource "aws_launch_template" "tier_bastion" {
-  name_prefix = "tier_bastion"
-  # var dung de lay gia tri
-  instance_type = var.instance_type
-  image_id = data.aws_ssm_parameter.tier_ami.value
-  vpc_security_group_ids = [ var.bastion_sg ]
-  key_name = var.key_name
-  tags = {
-    Name = "tier_bastion"
-  }
-} 
-
-data "aws_ssm_parameter" "tier_ami" {
-  name = "ssm_tier_ami"
+data "aws_ssm_parameter" "three-tier-ami" {
+  name = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
 }
 
- 
- resource "aws_autoscaling_group" "tier_bastion" {
-   name = "tier_bastion" 
-   max_size = 1
-   min_size = 1
-   desired_capacity = 1
-   vpc_zone_identifier = var.public_subnets
+# SSH KEY FOR BASTION HOST
 
-   launch_template {
-      id = aws_launch_template.tier_bastion.id
-      version = "$Latest"
-   }
- }
+resource "tls_private_key" "main" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
 
- # launch template for front end
+resource "aws_key_pair" "generated_key" {
+  key_name   = var.ssh_key
+  public_key = tls_private_key.main.public_key_openssh
+}
 
- resource "aws_launch_template" "tier_app" {
-  name_prefix = "tier_app"
-  # var dung de lay gia tri
-  instance_type = var.instance_type
-  image_id = data.aws_ssm_parameter.tier_ami.value
-  vpc_security_group_ids = [ var.frontend_app_sg ]
-  key_name = var.key_name
+resource "local_file" "ssh_key" {
+  content         = tls_private_key.main.private_key_pem
+  filename        = "${var.ssh_key}.pem"
+  file_permission = "0400"
+}
 
-  user_data = filebase64("install_apache.sh") 
+# LAUNCH TEMPLATES AND AUTOSCALING GROUPS FOR BASTION HOST
+
+resource "aws_launch_template" "three_tier_bastion" {
+  name_prefix            = "three_tier_bastion"
+  instance_type          = var.instance_type
+  image_id               = data.aws_ssm_parameter.three-tier-ami.value
+  vpc_security_group_ids = [var.bastion_sg]
+  key_name               = var.key_name
+
   tags = {
-    Name = "tier_app"
+    Name = "three_tier_bastion"
   }
 }
 
+resource "aws_autoscaling_group" "three_tier_bastion" {
+  name                = "three_tier_bastion"
+  vpc_zone_identifier = var.public_subnets
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
 
-data "aws_alb_target_group" "tier_tg" {
-  name =  var.lb_tg_name
-}
-
-resource "aws_autoscaling_group" "tier_app" {
-name = "tier_app" 
-max_size = 3
-min_size = 2
-desired_capacity = 2
-vpc_zone_identifier = var.public_subnets
-
-target_group_arns = [data.aws_alb_target_group.tier_app.arn]
-
-launch_template {
-    id = aws_launch_template.tier_app.id
+  launch_template {
+    id      = aws_launch_template.three_tier_bastion.id
     version = "$Latest"
-}
-}
-
- # launch template for back end
-
- resource "aws_launch_template" "tier_backend" {
-  name_prefix = "tier_backend"
-  # var dung de lay gia tri
-  instance_type = var.instance_type
-  image_id = data.aws_ssm_parameter.tier_ami.id
-  vpc_security_group_ids = [ var.backend_app_sg ]
-  key_name = var.key_name
-
-  user_data = filebase64("install_node.sh") 
-  tags = {
-    Name = "tier_backend"
   }
 }
 
+# LAUNCH TEMPLATES AND AUTOSCALING GROUPS FOR FRONTEND APP TIER
 
- resource "aws_autoscaling_group" "tier_backend" {
-   name = "tier_backend" 
-   max_size = 3
-   min_size = 2
-   desired_capacity = 2
-   vpc_zone_identifier = var.private_subnets
+resource "aws_launch_template" "three_tier_app" {
+  name_prefix            = "three_tier_app"
+  instance_type          = var.instance_type
+  image_id               = data.aws_ssm_parameter.three-tier-ami.value
+  vpc_security_group_ids = [var.frontend_app_sg]
+  user_data              = filebase64("install_apache.sh")
+  key_name               = var.key_name
 
-   target_group_arns = [data.aws_alb_target_group.tier_app.arn]
+  tags = {
+    Name = "three_tier_app"
+  }
+}
 
-   launch_template {
-      id = aws_launch_template.tier_backend.id
-      version = "$Latest"
-   }
- }
+data "aws_lb_target_group" "three_tier_tg" {
+  name = var.lb_tg_name
+}
+
+resource "aws_autoscaling_group" "three_tier_app" {
+  name                = "three_tier_app"
+  vpc_zone_identifier = var.private_subnets
+  min_size            = 2
+  max_size            = 3
+  desired_capacity    = 2
+
+  target_group_arns = [data.aws_lb_target_group.three_tier_tg.arn]
+
+  launch_template {
+    id      = aws_launch_template.three_tier_app.id
+    version = "$Latest"
+  }
+}
+# LAUNCH TEMPLATES AND AUTOSCALING GROUPS FOR BACKEND
+
+resource "aws_launch_template" "three_tier_backend" {
+  name_prefix            = "three_tier_backend"
+  instance_type          = var.instance_type
+  image_id               = data.aws_ssm_parameter.three-tier-ami.value
+  vpc_security_group_ids = [var.backend_app_sg]
+  key_name               = var.key_name
+  user_data              = filebase64("install_node.sh")
+
+  tags = {
+    Name = "three_tier_backend"
+  }
+}
+
+resource "aws_autoscaling_group" "three_tier_backend" {
+  name                = "three_tier_backend"
+  vpc_zone_identifier = var.private_subnets
+  min_size            = 2
+  max_size            = 3
+  desired_capacity    = 2
+
+  launch_template {
+    id      = aws_launch_template.three_tier_backend.id
+    version = "$Latest"
+  }
+}
+
+# AUTOSCALING ATTACHMENT FOR APP TIER TO LOADBALANCER
+
+resource "aws_autoscaling_attachment" "asg_attach" {
+  autoscaling_group_name = aws_autoscaling_group.three_tier_app.id
+  lb_target_group_arn    = var.lb_tg
+}
