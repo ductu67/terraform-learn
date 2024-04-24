@@ -6,7 +6,7 @@ provider "aws" {
 
 locals {
   instance_type = "t2.micro"
-  location      = "us-east-1"
+  location      = "ap-southeast-1"
   environment   = "dev"
   vpc_cidr      = "10.123.0.0/16"
 }
@@ -14,11 +14,11 @@ locals {
 module "networking" {
   source           = "../modules/networking"
   vpc_cidr         = local.vpc_cidr
-  access_ip        = var.access_ip
+  access_ip        = "0.0.0.0/0"
   public_sn_count  = 2
   private_sn_count = 2
   db_subnet_group  = true
-  availabilityzone = "us-east-1a"
+  availabilityzone = "ap-southeast-1a"
   azs              = 2
 }
 
@@ -41,10 +41,10 @@ module "database" {
   source               = "../modules/database"
   db_storage           = 10
   db_engine_version    = "8.0"
-  db_instance_class    = "db.t2.micro"
-  db_name              = var.db_name
-  dbuser               = var.dbuser
-  dbpassword           = var.dbpassword
+  db_instance_class    = "db.t3.micro"
+  db_name              = "db_tund"
+  dbuser               = "dbuser"
+  dbpassword           = "dbpassword"
   db_identifier        = "three-tier-db"
   skip_db_snapshot     = true
   rds_sg               = module.networking.rds_sg
