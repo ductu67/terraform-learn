@@ -3,6 +3,7 @@
 *.tfstate.backup
 *.tfplan
 *.tfout
+*.pem
 
 # Crash log files
 crash.log
