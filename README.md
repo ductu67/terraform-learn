@@ -1,3 +1,4 @@
+https://devopsvn.tech/terraform-series/terraform/bai-3-cach-lap-trinh-trong-terraform
 Prerequisites
 Before you begin, ensure that you have the following prerequisites:
 
