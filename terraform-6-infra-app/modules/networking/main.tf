@@ -15,7 +15,7 @@ module "vpc" {
   single_nat_gateway             = true
 }
 
-module "alb_sg" {
+module "lb_sg" {
   source = "terraform-in-action/sg/aws"
   vpc_id = module.vpc.vpc_id
   ingress_rules = [

@@ -16,6 +16,7 @@ module "networking" {
   database_subnets = ["10.0.7.0/24", "10.0.8.0/24", "10.0.9.0/24"]
 }
 
+
 module "database" {
   source = "./modules/database"
 
@@ -26,7 +27,7 @@ module "database" {
 
 module "autoscaling" {
   source = "./modules/autoscaling"
-  
+
   project   = local.project
   vpc       = module.networking.vpc
   sg        = module.networking.sg
